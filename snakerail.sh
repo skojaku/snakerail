@@ -1,25 +1,25 @@
 #!/bin/bash
-# doctorsnake.sh — Run Snakemake with auto-healing via Claude Code
+# snakerail.sh — Run Snakemake with auto-healing via Claude Code
 #
 # Runs Snakemake directly, catches errors, invokes Claude Code to self-heal,
 # commits each fix, and retries until the pipeline succeeds or max retries hit.
 #
 # Usage:
-#   ./doctorsnake.sh                               # run with defaults
-#   ./doctorsnake.sh --cmd "snakemake --cores 4"   # custom snakemake command
-#   ./doctorsnake.sh --max-retries 5               # limit fix attempts
-#   ./doctorsnake.sh --branch myfix                # custom branch name
+#   ./snakerail.sh                               # run with defaults
+#   ./snakerail.sh --cmd "snakemake --cores 4"   # custom snakemake command
+#   ./snakerail.sh --max-retries 5               # limit fix attempts
+#   ./snakerail.sh --branch myfix                # custom branch name
 #
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LOG="$SCRIPT_DIR/.doctorsnake.log"
-RUN_LOG="$SCRIPT_DIR/.doctorsnake_run.log"
+LOG="$SCRIPT_DIR/.snakerail.log"
+RUN_LOG="$SCRIPT_DIR/.snakerail_run.log"
 
 # Defaults
 SNAKEMAKE_CMD="snakemake --cores all --rerun-incomplete"
 MAX_RETRIES=10
-BRANCH="doctorsnake/$(date '+%Y%m%d-%H%M%S')"
+BRANCH="snakerail/$(date '+%Y%m%d-%H%M%S')"
 
 # Parse CLI arguments
 while [ $# -gt 0 ]; do
@@ -37,7 +37,7 @@ cd "$SCRIPT_DIR"
 
 # ── 1. Create git branch ──────────────────────────────────────────────────────
 log "========================================"
-log "START: doctorsnake"
+log "START: snakerail"
 log "CMD: $SNAKEMAKE_CMD"
 log "MAX_RETRIES: $MAX_RETRIES"
 log "========================================"
@@ -126,7 +126,7 @@ Important:
     if $IN_GIT; then
         if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
             git add -A
-            git commit -m "doctorsnake: auto-fix attempt $RETRIES
+            git commit -m "snakerail: auto-fix attempt $RETRIES
 
 $(git diff HEAD --stat 2>/dev/null || true)"
             log "GIT: Changes committed."
