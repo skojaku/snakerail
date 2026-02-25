@@ -18,19 +18,21 @@ Auto-fix your Snakemake pipeline errors with Claude Code.
 
 ```bash
 git clone https://github.com/skojaku/snakerail.git
-cp snakerail/snakerail.sh /path/to/your/project/
-chmod +x /path/to/your/project/snakerail.sh
+chmod +x snakerail/snakerail.sh
+# optionally add to PATH: export PATH="$PWD/snakerail:$PATH"
 ```
 
-The script must live in the root of your Snakemake project (next to your `Snakefile`).
+Run the script from your Snakemake project root (where your `Snakefile` lives).
 
 ## Usage
 
 ```bash
-./snakerail.sh                          # run with defaults
-./snakerail.sh --cores 4 -p             # pass flags to snakemake
-./snakerail.sh --max-retries 5          # limit fix attempts
-./snakerail.sh --branch my-experiment   # custom branch name
+cd /path/to/your/snakemake/project
+
+snakerail.sh                          # run with defaults
+snakerail.sh --cores 4 -p             # pass flags to snakemake
+snakerail.sh --max-retries 5          # limit fix attempts
+snakerail.sh --branch my-experiment   # custom branch name
 ```
 
 `--max-retries` and `--branch` are snakerail flags; everything else is forwarded to Snakemake.
