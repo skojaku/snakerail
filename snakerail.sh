@@ -20,38 +20,47 @@ done
 
 log() { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG"; }
 
+run_snakemake() {
+  snakemake --unlock 2>/dev/null || true
+  snakemake --cores all --rerun-incomplete "${PASS[@]}" 2>&1 | tee "$RUN_LOG"
+  return ${PIPESTATUS[0]}
+}
+
+extract_error() {
+  local error
+  error=$(grep -E "Error|Traceback" "$RUN_LOG" -B3 -A10 2>/dev/null | tail -60)
+  [ -z "$error" ] && error=$(tail -60 "$RUN_LOG")
+  echo "$error"
+}
+
+heal() {
+  local attempt=$1 error=$2
+  log "Attempt $attempt — invoking Claude Code to fix..."
+  claude -p "Fix the Snakemake error below. Edit the code so it won't recur. Do not restart Snakemake.
+When done, git add and commit your changes with a descriptive message.
+Project: $DIR
+
+$error" \
+    --allowedTools "Bash,Read,Edit,Write,Grep,Glob,WebFetch,WebSearch" \
+    --dangerously-skip-permissions >> "$LOG" 2>&1
+  git log --oneline -3 | tee -a "$LOG"
+}
+
+# ── main ──────────────────────────────────────────────────────────────────────
 cd "$DIR"
 git checkout -b "$BRANCH" 2>/dev/null || true
 log "Starting on branch $BRANCH"
 
-for attempt in $(seq 1 $((MAX_RETRIES + 1))); do
-  snakemake --unlock 2>/dev/null || true
-  snakemake --cores all --rerun-incomplete "${PASS[@]}" 2>&1 | tee "$RUN_LOG"
-  EXIT=${PIPESTATUS[0]}
-
-  if [ $EXIT -eq 0 ]; then
+attempt=0
+while true; do
+  if run_snakemake; then
     log "Pipeline complete."
     git log --oneline "$BRANCH" 2>/dev/null
     exit 0
   fi
 
-  if [ $attempt -gt $MAX_RETRIES ]; then
-    log "Giving up after $MAX_RETRIES attempts."
-    exit 1
-  fi
+  attempt=$((attempt + 1))
+  [ $attempt -gt $MAX_RETRIES ] && { log "Giving up after $MAX_RETRIES attempts."; exit 1; }
 
-  log "Error on attempt $attempt — invoking Claude Code to fix..."
-
-  ERROR=$(grep -E "Error|Traceback" "$RUN_LOG" -B3 -A10 2>/dev/null | tail -60)
-  [ -z "$ERROR" ] && ERROR=$(tail -60 "$RUN_LOG")
-
-  claude -p "Fix the Snakemake error below. Edit the code so it won't recur. Do not restart Snakemake.
-When done, git add and commit your changes with a descriptive message.
-Project: $DIR
-
-$ERROR" \
-    --allowedTools "Bash,Read,Edit,Write,Grep,Glob,WebFetch,WebSearch" \
-    --dangerously-skip-permissions >> "$LOG" 2>&1
-
-  git log --oneline -3 | tee -a "$LOG"
+  heal "$attempt" "$(extract_error)"
 done
