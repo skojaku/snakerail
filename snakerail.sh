@@ -17,7 +17,7 @@ while [ $# -gt 0 ]; do
 done
 
 run_snakemake() {
-  snakemake --unlock 2>/dev/null; snakemake --cores all --rerun-incomplete "${PASS[@]}" 2>&1 | tee "$DIR/.snakerail_run.log"
+  snakemake --unlock 2>/dev/null; snakemake "${PASS[@]}" 2>&1 | tee "$DIR/.snakerail_run.log"
   return ${PIPESTATUS[0]}
 }
 
