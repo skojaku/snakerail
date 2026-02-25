@@ -49,7 +49,7 @@ for attempt in $(seq 1 $((MAX_RETRIES + 1))); do
 Project: $DIR
 
 $ERROR" \
-    --allowedTools "Bash,Read,Edit,Write,Grep,Glob" \
+    --allowedTools "Bash,Read,Edit,Write,Grep,Glob,WebFetch,WebSearch" \
     --dangerously-skip-permissions >> "$LOG" 2>&1
 
   if ! git diff --quiet 2>/dev/null; then
