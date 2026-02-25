@@ -5,15 +5,16 @@ set -uo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG="$DIR/.snakerail.log"
+RUN_LOG="$DIR/.snakerail_run.log"
 MAX_RETRIES=10
 BRANCH="snakerail/$(date '+%Y%m%d-%H%M%S')"
-EXTRA=()
+PASS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --max-retries) MAX_RETRIES="$2"; shift 2 ;;
     --branch)      BRANCH="$2";      shift 2 ;;
-    *)             EXTRA+=("$1");    shift ;;
+    *)             PASS+=("$1");     shift ;;
   esac
 done
 
@@ -21,31 +22,39 @@ log() { echo "[$(date '+%H:%M:%S')] $*" | tee -a "$LOG"; }
 
 cd "$DIR"
 git checkout -b "$BRANCH" 2>/dev/null || true
-log "branch: $BRANCH"
+log "Starting on branch $BRANCH"
 
-RETRIES=0
-while true; do
+for attempt in $(seq 1 $((MAX_RETRIES + 1))); do
   snakemake --unlock 2>/dev/null || true
-  snakemake --cores all --rerun-incomplete "${EXTRA[@]}" 2>&1 | tee "$DIR/.snakerail_run.log"
-  [ ${PIPESTATUS[0]} -eq 0 ] && { log "done"; git log --oneline "$BRANCH" 2>/dev/null; exit 0; }
+  snakemake --cores all --rerun-incomplete "${PASS[@]}" 2>&1 | tee "$RUN_LOG"
+  EXIT=${PIPESTATUS[0]}
 
-  log "error (attempt $RETRIES/$MAX_RETRIES)"
-  [ "$RETRIES" -ge "$MAX_RETRIES" ] && { log "abort: max retries reached"; exit 1; }
-  RETRIES=$((RETRIES + 1))
+  if [ $EXIT -eq 0 ]; then
+    log "Pipeline complete."
+    git log --oneline "$BRANCH" 2>/dev/null
+    exit 0
+  fi
 
-  ERROR=$(grep -E "Error in rule|Traceback|Error" "$DIR/.snakerail_run.log" -B3 -A10 2>/dev/null | tail -60)
-  [ -z "$ERROR" ] && ERROR=$(tail -60 "$DIR/.snakerail_run.log")
+  if [ $attempt -gt $MAX_RETRIES ]; then
+    log "Giving up after $MAX_RETRIES attempts."
+    exit 1
+  fi
 
-  claude -p "Snakemake pipeline failed. Fix the code so it won't recur. Do not restart Snakemake.
+  log "Error on attempt $attempt — invoking Claude Code to fix..."
+
+  ERROR=$(grep -E "Error|Traceback" "$RUN_LOG" -B3 -A10 2>/dev/null | tail -60)
+  [ -z "$ERROR" ] && ERROR=$(tail -60 "$RUN_LOG")
+
+  claude -p "Fix the Snakemake error below. Edit the code so it won't recur. Do not restart Snakemake.
 Project: $DIR
 
-Error output:
 $ERROR" \
     --allowedTools "Bash,Read,Edit,Write,Grep,Glob" \
     --dangerously-skip-permissions >> "$LOG" 2>&1
 
-  if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-    git add -A && git commit -m "snakerail: fix attempt $RETRIES" >> "$LOG"
+  if ! git diff --quiet 2>/dev/null; then
+    git add -A
+    git commit -m "snakerail: fix attempt $attempt" >> "$LOG"
     git log --oneline -3 | tee -a "$LOG"
   fi
 done
