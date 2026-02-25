@@ -2,7 +2,9 @@
 # snakerail — run Snakemake, auto-fix errors with Claude Code, repeat until done
 # Usage: ./snakerail.sh [--max-retries N] [--branch NAME] [snakemake args...]
 set -uo pipefail
-trap 'echo "Interrupted."; exit 1' INT TERM
+
+CHILD_PID=""
+trap 'echo "Interrupted."; [ -n "$CHILD_PID" ] && kill "$CHILD_PID" 2>/dev/null; exit 1' INT TERM
 
 DIR="$PWD"
 MAX_RETRIES=10
@@ -18,8 +20,10 @@ while [ $# -gt 0 ]; do
 done
 
 run_snakemake() {
-  snakemake --unlock 2>/dev/null; snakemake "${PASS[@]}" 2>&1 | tee "$DIR/.snakerail_run.log"
-  return ${PIPESTATUS[0]}
+  snakemake --unlock 2>/dev/null
+  snakemake "${PASS[@]}" 2>&1 | tee "$DIR/.snakerail_run.log" & CHILD_PID=$!
+  wait "$CHILD_PID"; local exit=$?; CHILD_PID=""
+  return $exit
 }
 
 heal() {
@@ -31,7 +35,8 @@ Project: $DIR
 
 $error" \
     --allowedTools "Bash,Read,Edit,Write,Grep,Glob,WebFetch,WebSearch" \
-    --dangerously-skip-permissions
+    --dangerously-skip-permissions & CHILD_PID=$!
+  wait "$CHILD_PID"; CHILD_PID=""
 }
 
 # ── main ──────────────────────────────────────────────────────────────────────
