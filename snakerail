@@ -35,8 +35,13 @@ $error" \
 
 # ── main ──────────────────────────────────────────────────────────────────────
 cd "$DIR"
-git checkout -b "$BRANCH" 2>/dev/null || true
-echo "Starting on branch $BRANCH"
+current=$(git branch --show-current 2>/dev/null)
+if [[ "$current" == "main" || "$current" == "master" ]]; then
+  git checkout -b "$BRANCH"
+  echo "Starting on branch $BRANCH"
+else
+  echo "Starting on branch $current"
+fi
 
 for attempt in $(seq 1 $MAX_RETRIES); do
   run_snakemake && { echo "Pipeline complete."; git log --oneline "$BRANCH"; exit 0; }
