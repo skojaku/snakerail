@@ -6,9 +6,9 @@
 #
 # Usage:
 #   ./snakerail.sh                               # run with defaults
-#   ./snakerail.sh --cmd "snakemake --cores 4"   # custom snakemake command
 #   ./snakerail.sh --max-retries 5               # limit fix attempts
 #   ./snakerail.sh --branch myfix                # custom branch name
+#   ./snakerail.sh --cores 4 --config key=val    # extra args passed to snakemake
 #
 set -uo pipefail
 
@@ -25,7 +25,6 @@ EXTRA_ARGS=()
 # Parse CLI arguments; unknown flags/args are forwarded to snakemake
 while [ $# -gt 0 ]; do
     case "$1" in
-        --cmd)         SNAKEMAKE_CMD="$2"; shift 2 ;;
         --max-retries) MAX_RETRIES="$2";   shift 2 ;;
         --branch)      BRANCH="$2";        shift 2 ;;
         *)             EXTRA_ARGS+=("$1"); shift ;;
